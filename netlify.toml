@@ -1,7 +1,7 @@
-[build]
-  base = "pols/bolt"
-  command = "npm run build"
-  publish = "pols/bolt/dist"
+﻿[build]
+  base = "."
+  command = "npm install && npm run build"
+  publish = "dist"
 
 [[redirects]]
   from = "/*"
@@ -9,4 +9,5 @@
   status = 200
 
 [build.environment]
-  NODE_VERSION = "18.20.7" 
+  NODE_VERSION = "18.20.7"
+  NPM_FLAGS = "--legacy-peer-deps"
