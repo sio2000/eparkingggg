@@ -40,7 +40,7 @@ export const supabase = createClient(
 // Test database connection
 supabase
   .from('locations')
-  .select('count(*)')
+  .select('count')
   .single()
   .then(({ data, error }) => {
     if (error) {
