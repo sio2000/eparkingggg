@@ -1,5 +1,4 @@
 [build]
-  base = "."
   command = "npm install && npm run build"
   publish = "dist"
 
@@ -16,3 +15,8 @@
   for = "/*"
     [headers.values]
     Access-Control-Allow-Origin = "*"
+    Content-Security-Policy = "frame-ancestors 'self'"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "autoplay=(), camera=(), geolocation=(self), microphone=()"
