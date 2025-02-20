@@ -223,7 +223,7 @@ export function Map() {
                   Shared Location
                 </h3>
                 <p>By: {location.user_email || 'Unknown user'}</p>
-                <p>Time: {new Date(location.timestamp).toLocaleString()}</p>
+                <p>Time: {new Date(location.created_at).toLocaleString()}</p>
                 {userLocation && (
                   <p className="text-sm text-gray-600 mt-1">
                     Distance: {calculateDistance(
