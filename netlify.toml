@@ -1,5 +1,4 @@
 [build]
-  base = "."
   command = "npm install && npm run build"
   publish = "dist"
 
@@ -11,3 +10,13 @@
 [build.environment]
   NODE_VERSION = "18.20.7"
   NPM_FLAGS = "--legacy-peer-deps"
+
+[[headers]]
+  for = "/*"
+    [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "X-Requested-With, Content-Type, Accept, Authorization, apikey, x-client-info, Range"
+    Access-Control-Allow-Credentials = "true"
+    Access-Control-Expose-Headers = "Content-Range, Range, X-Total-Count"
+    Content-Security-Policy = "default-src 'self'; connect-src 'self' wss://*.supabase.co https://*.supabase.co; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*;"

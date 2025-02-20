@@ -88,25 +88,45 @@ export function Map() {
   const { user } = useAuthStore();
 
   useEffect(() => {
+    console.log('Map component mounted, subscribing to locations');
     subscribeToLocations();
-    return () => unsubscribeFromLocations();
+    return () => {
+      console.log('Map component unmounting, unsubscribing from locations');
+      unsubscribeFromLocations();
+    };
   }, []);
 
-  const handleShareLocation = () => {
-    if (!user) return;
-    
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        addLocation({
-          user_id: user.id,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
+  const handleShareLocation = async () => {
+    if (!user) {
+      console.error('No user found');
+      return;
+    }
+
+    try {
+      console.log('Getting location for user:', user.email);
+
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         });
-      },
-      (error) => {
-        console.error('Error getting location:', error);
-      }
-    );
+      });
+
+      const locationData = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      };
+
+      console.log('Position obtained:', locationData);
+
+      await addLocation(locationData);
+      console.log('Location shared successfully');
+
+    } catch (error) {
+      console.error('Error sharing location:', error);
+      // Θα μπορούσατε να προσθέσετε ένα toast notification εδώ
+    }
   };
 
   const handleSpotClick = (spot: typeof spots[0]) => {
