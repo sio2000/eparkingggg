@@ -1,6 +1,7 @@
 [build]
-  command = "npm install && npm run build"
-  publish = "dist"
+  base = "."
+  command = "cd bolt && npm install && npm run build"
+  publish = "bolt/dist"
 
 [[redirects]]
   from = "/*"
