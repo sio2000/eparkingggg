@@ -11,13 +11,22 @@ if (!supabaseUrl || !supabaseAnonKey) {
 console.log('Supabase URL:', supabaseUrl);
 console.log('Initializing Supabase client...');
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
+export const supabase = createClient(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10
+      }
+    }
   }
-});
+);
 
 // Έλεγχος της σύνδεσης
 supabase.auth.onAuthStateChange((event, session) => {

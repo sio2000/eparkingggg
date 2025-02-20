@@ -5,6 +5,8 @@ import { icon } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useLanguageStore } from '../store/languageStore';
 import { translations } from '../utils/translations';
+import { useLocationStore } from '../store/locationStore';
+import { useAuthStore } from '../store/authStore';
 
 const DEFAULT_CENTER = { lat: 51.505, lng: -0.09 };
 const DEFAULT_ZOOM = 13;
@@ -34,6 +36,16 @@ const redMarkerIcon = icon({
 
 const blueMarkerIcon = icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+// Προσθήκη νέου marker icon για shared locations
+const greenMarkerIcon = icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -72,20 +84,30 @@ export function Map() {
   const { language } = useLanguageStore();
   const t = translations[language];
   const setUserLocation = useParkingStore((state) => state.setUserLocation);
+  const { locations, subscribeToLocations, unsubscribeFromLocations, addLocation } = useLocationStore();
+  const { user } = useAuthStore();
 
   useEffect(() => {
+    subscribeToLocations();
+    return () => unsubscribeFromLocations();
+  }, []);
+
+  const handleShareLocation = () => {
+    if (!user) return;
+    
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setUserLocation({
+        addLocation({
+          user_id: user.id,
           latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
+          longitude: position.coords.longitude
         });
       },
       (error) => {
         console.error('Error getting location:', error);
       }
     );
-  }, [setUserLocation]);
+  };
 
   const handleSpotClick = (spot: typeof spots[0]) => {
     if (userLocation) {
@@ -136,6 +158,8 @@ export function Map() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <LocationMarker />
+        
+        {/* Εμφάνιση των parking spots */}
         {filteredSpots.map((spot) => (
           <Marker
             key={spot.id}
@@ -166,7 +190,42 @@ export function Map() {
             </Popup>
           </Marker>
         ))}
+
+        {/* Εμφάνιση των shared locations */}
+        {locations.map((location) => (
+          <Marker
+            key={location.id}
+            position={[location.latitude, location.longitude]}
+            icon={greenMarkerIcon}
+          >
+            <Popup>
+              <div className="p-2">
+                <h3 className="font-semibold">
+                  Shared Location
+                </h3>
+                <p>By: {location.user_email || 'Unknown user'}</p>
+                <p>Time: {new Date(location.timestamp).toLocaleString()}</p>
+                {userLocation && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Distance: {calculateDistance(
+                      userLocation.latitude,
+                      userLocation.longitude,
+                      location.latitude,
+                      location.longitude
+                    ).toFixed(1)} km
+                  </p>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
       </MapContainer>
+      <button
+        onClick={handleShareLocation}
+        className="absolute bottom-4 right-4 rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+      >
+        Share Location
+      </button>
     </div>
   );
 }

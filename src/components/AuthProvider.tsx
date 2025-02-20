@@ -1,12 +1,35 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Navigate, useLocation } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 
 interface AuthProviderProps {
   children: React.ReactNode;
 }
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+      storage: {
+        getItem: (key) => sessionStorage.getItem(key),
+        setItem: (key, value) => sessionStorage.setItem(key, value),
+        removeItem: (key) => sessionStorage.removeItem(key)
+      }
+    },
+    global: {
+      headers: {
+        'x-application-name': 'parking-app'
+      }
+    }
+  }
+);
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
