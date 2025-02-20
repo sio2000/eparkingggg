@@ -125,7 +125,6 @@ export function Map() {
 
     } catch (error) {
       console.error('Error sharing location:', error);
-      // Θα μπορούσατε να προσθέσετε ένα toast notification εδώ
     }
   };
 

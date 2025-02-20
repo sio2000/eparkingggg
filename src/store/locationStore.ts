@@ -7,8 +7,8 @@ interface Location {
   user_id: string;
   latitude: number;
   longitude: number;
-  timestamp: string;
   user_email?: string;
+  created_at: string;
 }
 
 interface LocationStore {
@@ -29,15 +29,14 @@ export const useLocationStore = create<LocationStore>((set, get) => ({
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) {
         console.error('Auth error:', userError);
-        throw userError;
+        return;
       }
       if (!user) {
         console.error('No user found');
-        throw new Error('No user found');
+        return;
       }
 
-      console.log('Current user:', user);
-      console.log('Adding location:', location);
+      console.log('Adding location for user:', user.email);
 
       // Insert location
       const { data, error: insertError } = await supabase
@@ -53,30 +52,44 @@ export const useLocationStore = create<LocationStore>((set, get) => ({
 
       if (insertError) {
         console.error('Insert error:', insertError);
-        throw insertError;
+        return;
       }
 
       console.log('Location added:', data);
 
       // Update local state
-      set(state => ({
-        locations: [data as Location, ...state.locations]
-      }));
+      if (data) {
+        set(state => ({
+          locations: [data as Location, ...state.locations]
+        }));
+      }
 
     } catch (error) {
       console.error('Error in addLocation:', error);
-      throw error;
     }
   },
 
   subscribeToLocations: async () => {
     try {
-      // Unsubscribe from any existing subscription
+      // Unsubscribe from existing subscription
       get().unsubscribeFromLocations();
 
-      // Set up realtime subscription
+      // Fetch initial locations
+      const { data: locations, error: fetchError } = await supabase
+        .from('locations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (fetchError) {
+        console.error('Error fetching locations:', fetchError);
+        return;
+      }
+
+      console.log('Initial locations:', locations);
+
+      // Subscribe to changes
       const channel = supabase
-        .channel('any')
+        .channel('locations_channel')
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'locations' },
@@ -90,15 +103,7 @@ export const useLocationStore = create<LocationStore>((set, get) => ({
         )
         .subscribe();
 
-      // Fetch initial data
-      const { data: locations, error: fetchError } = await supabase
-        .from('locations')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-
-      console.log('Initial locations:', locations);
+      // Set initial state
       set({ 
         channel,
         locations: locations || [] 
@@ -106,7 +111,6 @@ export const useLocationStore = create<LocationStore>((set, get) => ({
 
     } catch (error) {
       console.error('Error in subscribeToLocations:', error);
-      throw error;
     }
   },
 
