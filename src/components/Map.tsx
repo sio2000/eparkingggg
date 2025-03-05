@@ -5,7 +5,7 @@ import { icon } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useLanguageStore } from '../store/languageStore';
 import { translations } from '../utils/translations';
-import { useLocationStore } from '../store/locationStore';
+import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 
 const DEFAULT_CENTER = { lat: 51.505, lng: -0.09 };
@@ -43,16 +43,6 @@ const blueMarkerIcon = icon({
   shadowSize: [41, 41]
 });
 
-// Προσθήκη νέου marker icon για shared locations
-const greenMarkerIcon = icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
 function LocationMarker() {
   const userLocation = useParkingStore((state) => state.userLocation);
   const map = useMap();
@@ -77,78 +67,95 @@ function LocationMarker() {
 }
 
 export function Map() {
+  const { user } = useAuthStore();
   const spots = useParkingStore((state) => state.spots);
   const userLocation = useParkingStore((state) => state.userLocation);
   const selectedDistance = useParkingStore((state) => state.selectedDistance);
   const setSelectedSpot = useParkingStore((state) => state.setSelectedSpot);
+  const setUserLocation = useParkingStore((state) => state.setUserLocation);
   const { language } = useLanguageStore();
   const t = translations[language];
-  const setUserLocation = useParkingStore((state) => state.setUserLocation);
-  const { locations, subscribeToLocations, unsubscribeFromLocations, addLocation } = useLocationStore();
-  const { user } = useAuthStore();
+  const [sharedSpots, setSharedSpots] = React.useState([]);
 
+  // Initialize user location and fetch shared spots
   useEffect(() => {
-    console.log('Map component mounted, subscribing to locations');
-    subscribeToLocations();
-    return () => {
-      console.log('Map component unmounting, unsubscribing from locations');
-      unsubscribeFromLocations();
-    };
-  }, []);
-
-  const handleShareLocation = async () => {
-    if (!user) {
-      console.error('No user found');
-      return;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const location = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          setUserLocation(location);
+          
+          // Fetch nearby spots when location is available
+          await fetchNearbySpots(location);
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+        }
+      );
     }
+  }, [setUserLocation]);
 
+  // Function to fetch nearby spots
+  const fetchNearbySpots = async (location) => {
     try {
-      console.log('Getting location for user:', user.email);
+      const { data, error } = await supabase
+        .from('parking_spots')
+        .select('*')
+        .eq('is_active', true);
 
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        });
+      if (error) throw error;
+
+      // Filter spots by distance
+      const nearbySpots = data.filter(spot => {
+        const distance = calculateDistance(
+          location.latitude,
+          location.longitude,
+          spot.latitude,
+          spot.longitude
+        );
+        return distance <= selectedDistance;
       });
 
-      const locationData = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude
-      };
-
-      console.log('Position obtained:', locationData);
-
-      await addLocation(locationData);
-      console.log('Location shared successfully');
-
-    } catch (error) {
-      console.error('Error sharing location:', error);
+      setSharedSpots(nearbySpots);
+    } catch (err) {
+      console.error('Error fetching spots:', err);
     }
   };
 
-  const handleSpotClick = (spot: typeof spots[0]) => {
+  // Function to share location
+  const handleShareLocation = async () => {
+    if (!userLocation || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('parking_spots')
+        .insert({
+          user_id: user.id,
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          user_email: user.email,
+          is_active: true
+        });
+
+      if (error) throw error;
+
+      // Refresh spots after sharing
+      await fetchNearbySpots(userLocation);
+    } catch (err) {
+      console.error('Error sharing location:', err);
+    }
+  };
+
+  const handleSpotClick = (spot: ParkingSpot) => {
+    setSelectedSpot(spot);
     if (userLocation) {
       const url = `https://www.google.com/maps/dir/${userLocation.latitude},${userLocation.longitude}/${spot.latitude},${spot.longitude}`;
       window.open(url, '_blank');
     }
-    setSelectedSpot(spot);
   };
-
-  const filteredSpots = React.useMemo(() => {
-    if (!userLocation) return spots;
-    
-    return spots.filter(spot => {
-      const distance = calculateDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        spot.latitude,
-        spot.longitude
-      );
-      return distance <= selectedDistance;
-    });
-  }, [spots, userLocation, selectedDistance]);
 
   return (
     <div className="relative w-full h-full">
@@ -166,9 +173,8 @@ export function Map() {
         </div>
       </div>
 
-      {/* Existing map */}
       <MapContainer
-        center={[DEFAULT_CENTER.lat, DEFAULT_CENTER.lng]}
+        center={[userLocation?.latitude || DEFAULT_CENTER.lat, userLocation?.longitude || DEFAULT_CENTER.lng]}
         zoom={DEFAULT_ZOOM}
         className="w-full h-full"
       >
@@ -178,8 +184,8 @@ export function Map() {
         />
         <LocationMarker />
         
-        {/* Εμφάνιση των parking spots */}
-        {filteredSpots.map((spot) => (
+        {/* Render shared spots */}
+        {sharedSpots.map((spot) => (
           <Marker
             key={spot.id}
             position={[spot.latitude, spot.longitude]}
@@ -191,10 +197,8 @@ export function Map() {
             <Popup>
               <div className="p-2">
                 <h3 className="font-semibold">
-                  {spot.userName ? `${spot.userName}'s Spot` : `Spot ${spot.id.slice(-6)}`}
+                  {spot.user_email ? `${spot.user_email}'s Spot` : `Spot ${spot.id.slice(-6)}`}
                 </h3>
-                <p>Size: {spot.size}</p>
-                <p>Accessible: {spot.isAccessible ? 'Yes' : 'No'}</p>
                 {userLocation && (
                   <p className="text-sm text-gray-600 mt-1">
                     Distance: {calculateDistance(
@@ -209,41 +213,14 @@ export function Map() {
             </Popup>
           </Marker>
         ))}
-
-        {/* Εμφάνιση των shared locations */}
-        {locations.map((location) => (
-          <Marker
-            key={location.id}
-            position={[location.latitude, location.longitude]}
-            icon={greenMarkerIcon}
-          >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold">
-                  Shared Location
-                </h3>
-                <p>By: {location.user_email || 'Unknown user'}</p>
-                <p>Time: {new Date(location.created_at).toLocaleString()}</p>
-                {userLocation && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Distance: {calculateDistance(
-                      userLocation.latitude,
-                      userLocation.longitude,
-                      location.latitude,
-                      location.longitude
-                    ).toFixed(1)} km
-                  </p>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
       </MapContainer>
+
       <button
         onClick={handleShareLocation}
-        className="absolute bottom-4 right-4 rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="absolute bottom-4 right-4 z-[1000] bg-blue-600 text-white px-4 py-2 rounded-lg
+          hover:bg-blue-700 transition-colors duration-200 shadow-lg"
       >
-        Share Location
+        {t.shareLocation}
       </button>
     </div>
   );

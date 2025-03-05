@@ -28,8 +28,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       setIsLoading(true);
       console.log('Starting payment process for user:', user.id);
 
-      // Απευθείας ανακατεύθυνση στο Stripe Checkout URL
-      const checkoutUrl = 'https://buy.stripe.com/test_fZe7sYgbI0fK7PGfZa';
+      // Update with the new Stripe Checkout URL
+      const checkoutUrl = 'https://buy.stripe.com/test_14k3cI0cKe6A3zqeV8';
       
       // Προσθήκη παραμέτρων για success και cancel URLs
       const successUrl = encodeURIComponent(`${window.location.origin}/payment-success`);

@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 export function SignInPage() {
   console.log('SignInPage rendering');
   const navigate = useNavigate();
+  const { setUser } = useAuthStore();
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -20,19 +21,22 @@ export function SignInPage() {
     try {
       setLoading(true);
       setError(null);
-      const { error, data } = await supabase.auth.signInWithPassword({
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+
       if (error) throw error;
       
-      if (data.session) {
-        console.log('Sign in successful');
-        navigate('/');
+      if (data?.session?.user) {
+        console.log('Sign in successful:', data.session.user);
+        setUser(data.session.user);
+        navigate('/', { replace: true });
       }
     } catch (err: any) {
-      setError(err.message);
       console.error('Sign in error:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -42,23 +46,37 @@ export function SignInPage() {
     try {
       setLoading(true);
       setError(null);
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`
         }
       });
+
       if (error) throw error;
     } catch (err: any) {
-      setError(err.message);
       console.error('Google sign in error:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // Έλεγχος αν ο χρήστης είναι ήδη συνδεδεμένος
+  React.useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        navigate('/', { replace: true });
+      }
+    };
+    
+    checkUser();
+  }, [navigate]);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-[#FEFEFE] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <img
@@ -129,31 +147,6 @@ export function SignInPage() {
               {loading ? t.signingIn : t.signIn}
             </button>
 
-            <Link
-              to="/signup"
-              className="w-full flex justify-center py-2 px-4 border border-blue-600
-                text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50
-                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                transition-colors duration-200"
-            >
-              {t.createAccount}
-            </Link>
-          </div>
-        </form>
-
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-50 text-gray-500">
-                {t.orContinueWith}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-6">
             <button
               onClick={handleGoogleSignIn}
               disabled={loading}
@@ -170,6 +163,31 @@ export function SignInPage() {
               />
               {t.continueWithGoogle}
             </button>
+          </div>
+        </form>
+
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-gray-50 text-gray-500">
+                {t.orContinueWith}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <Link
+              to="/signup"
+              className="w-full flex justify-center py-2 px-4 border border-blue-600
+                text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50
+                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                transition-colors duration-200"
+            >
+              {t.createAccount}
+            </Link>
           </div>
         </div>
       </div>

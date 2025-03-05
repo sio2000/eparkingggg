@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useLanguageStore } from '../store/languageStore';
 import { translations } from '../utils/translations';
 import { ChangePasswordModal } from './settings/ChangePasswordModal';
+import { supabase } from '../lib/supabase';
 
 interface AccountSettingsModalProps {
   isOpen: boolean;
@@ -11,7 +12,7 @@ interface AccountSettingsModalProps {
 }
 
 export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalProps) {
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const { language } = useLanguageStore();
   const t = translations[language];
   const [name, setName] = React.useState(user?.user_metadata?.name || '');
@@ -20,6 +21,37 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     nearbySpots: true
   });
   const [showPasswordModal, setShowPasswordModal] = React.useState(false);
+  const [successMessage, setSuccessMessage] = React.useState('');
+  const [error, setError] = React.useState('');
+
+  const handleSaveChanges = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      setSuccessMessage('');
+
+      const { data, error: updateError } = await supabase.auth.updateUser({
+        data: { name: name }
+      });
+
+      if (updateError) throw updateError;
+
+      if (data.user) {
+        setUser(data.user);
+        setSuccessMessage('Οι αλλαγές αποθηκεύτηκαν με επιτυχία!');
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSuccessMessage('');
+        }, 3000);
+      }
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      setError(err.message || 'Παρουσιάστηκε σφάλμα κατά την αποθήκευση των αλλαγών');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -55,48 +87,65 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center overflow-auto">
-        <div className="bg-white rounded-lg w-full max-w-md p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold">{t.accountSettings}</h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              {t.close}
+        <div className="bg-white rounded-lg w-full max-w-md p-6 m-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">{t.accountSettings}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X size={20} />
             </button>
           </div>
 
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-medium mb-3">{t.editProfile}</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t.email}
-                  </label>
-                  <input
-                    type="email"
-                    value={user?.email || ''}
-                    readOnly
-                    className="w-full px-3 py-2 border rounded-md bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t.name}
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
-                </div>
-                <button
-                  className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
-                  disabled={loading}
-                >
-                  {t.saveChanges}
-                </button>
+          <div className="space-y-4">
+            {/* Success Message */}
+            {successMessage && (
+              <div className="bg-green-50 text-green-600 p-3 rounded-md text-sm">
+                {successMessage}
               </div>
+            )}
+
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t.name}
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t.email}
+              </label>
+              <input
+                type="email"
+                value={user?.email || ''}
+                readOnly
+                className="w-full px-3 py-2 border rounded-md bg-gray-50"
+              />
+            </div>
+
+            <button
+              onClick={handleSaveChanges}
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 
+                disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            >
+              {loading ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                t.saveChanges
+              )}
+            </button>
 
             <div className="p-4 border rounded-lg">
               <h3 className="font-medium mb-3">{t.notificationSettings}</h3>

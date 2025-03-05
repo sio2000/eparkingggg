@@ -6,6 +6,7 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   error: string | null;
+  setUser: (user: User | null) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -14,77 +15,48 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  loading: true,
+  loading: false,
   error: null,
 
-  signIn: async (email: string, password: string) => {
+  setUser: (user) => {
+    set({ user });
+  },
+
+  signIn: async (email, password) => {
     try {
       set({ loading: true, error: null });
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
       if (error) throw error;
-      set({ user: data.user, loading: false });
+      if (data.user) {
+        set({ user: data.user });
+      }
     } catch (error: any) {
-      set({ 
-        error: error.message || 'Σφάλμα κατά τη σύνδεση',
-        loading: false 
-      });
+      set({ error: error.message });
       throw error;
+    } finally {
+      set({ loading: false });
     }
   },
 
-  signUp: async (email: string, password: string) => {
+  signUp: async (email, password) => {
     try {
       set({ loading: true, error: null });
-      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            name: email.split('@')[0],
-            avatar_url: null,
-          }
-        }
       });
-      
       if (error) throw error;
-
       if (data.user) {
-        // Δημιουργία profile με free subscription
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: data.user.id,
-              email: data.user.email,
-              name: email.split('@')[0],
-              subscription_status: 'free',
-              subscription_start_date: null,
-              subscription_end_date: null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
-          ]);
-
-        if (profileError) {
-          console.error('Error creating profile:', profileError);
-        }
+        set({ user: data.user });
       }
-
-      set({ user: data.user, loading: false });
-      return data;
     } catch (error: any) {
-      const errorMessage = error.message === 'User already registered'
-        ? 'Υπάρχει ήδη λογαριασμός με αυτό το email'
-        : error.message || 'Σφάλμα κατά την εγγραφή';
-      
-      set({ error: errorMessage, loading: false });
+      set({ error: error.message });
       throw error;
+    } finally {
+      set({ loading: false });
     }
   },
 
@@ -93,17 +65,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ loading: true, error: null });
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      set({ user: null, loading: false });
+      set({ user: null });
     } catch (error: any) {
-      set({ 
-        error: error.message || 'Σφάλμα κατά την αποσύνδεση',
-        loading: false 
-      });
-      throw error;
+      set({ error: error.message });
+    } finally {
+      set({ loading: false });
     }
   },
 
-  clearError: () => set({ error: null }),
+  clearError: () => {
+    set({ error: null });
+  },
 }));
 
 // Αρχικοποίηση της κατάστασης του χρήστη
