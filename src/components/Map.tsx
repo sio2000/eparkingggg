@@ -43,6 +43,7 @@ const blueMarkerIcon = icon({
   shadowSize: [41, 41]
 });
 
+// Add back the LocationMarker component to handle map centering
 function LocationMarker() {
   const userLocation = useParkingStore((state) => state.userLocation);
   const map = useMap();
@@ -51,7 +52,7 @@ function LocationMarker() {
     if (userLocation) {
       map.flyTo(
         [userLocation.latitude, userLocation.longitude],
-        map.getZoom()
+        16  // Changed from 17 to 16 for better zoom level
       );
     }
   }, [userLocation, map]);
@@ -70,26 +71,20 @@ export function Map() {
   const { user } = useAuthStore();
   const spots = useParkingStore((state) => state.spots);
   const userLocation = useParkingStore((state) => state.userLocation);
-  const selectedDistance = useParkingStore((state) => state.selectedDistance);
-  const setSelectedSpot = useParkingStore((state) => state.setSelectedSpot);
   const setUserLocation = useParkingStore((state) => state.setUserLocation);
   const { language } = useLanguageStore();
   const t = translations[language];
-  const [sharedSpots, setSharedSpots] = React.useState([]);
 
-  // Initialize user location and fetch shared spots
+  // Initialize user location
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        async (position) => {
+        (position) => {
           const location = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude
           };
           setUserLocation(location);
-          
-          // Fetch nearby spots when location is available
-          await fetchNearbySpots(location);
         },
         (error) => {
           console.error('Error getting location:', error);
@@ -97,65 +92,6 @@ export function Map() {
       );
     }
   }, [setUserLocation]);
-
-  // Function to fetch nearby spots
-  const fetchNearbySpots = async (location) => {
-    try {
-      const { data, error } = await supabase
-        .from('parking_spots')
-        .select('*')
-        .eq('is_active', true);
-
-      if (error) throw error;
-
-      // Filter spots by distance
-      const nearbySpots = data.filter(spot => {
-        const distance = calculateDistance(
-          location.latitude,
-          location.longitude,
-          spot.latitude,
-          spot.longitude
-        );
-        return distance <= selectedDistance;
-      });
-
-      setSharedSpots(nearbySpots);
-    } catch (err) {
-      console.error('Error fetching spots:', err);
-    }
-  };
-
-  // Function to share location
-  const handleShareLocation = async () => {
-    if (!userLocation || !user) return;
-
-    try {
-      const { error } = await supabase
-        .from('parking_spots')
-        .insert({
-          user_id: user.id,
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-          user_email: user.email,
-          is_active: true
-        });
-
-      if (error) throw error;
-
-      // Refresh spots after sharing
-      await fetchNearbySpots(userLocation);
-    } catch (err) {
-      console.error('Error sharing location:', err);
-    }
-  };
-
-  const handleSpotClick = (spot: ParkingSpot) => {
-    setSelectedSpot(spot);
-    if (userLocation) {
-      const url = `https://www.google.com/maps/dir/${userLocation.latitude},${userLocation.longitude}/${spot.latitude},${spot.longitude}`;
-      window.open(url, '_blank');
-    }
-  };
 
   return (
     <div className="relative w-full h-full">
@@ -182,17 +118,15 @@ export function Map() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        
         <LocationMarker />
         
-        {/* Render shared spots */}
-        {sharedSpots.map((spot) => (
+        {/* Red markers for unparked spots */}
+        {spots.map((spot) => (
           <Marker
             key={spot.id}
             position={[spot.latitude, spot.longitude]}
             icon={redMarkerIcon}
-            eventHandlers={{
-              click: () => handleSpotClick(spot),
-            }}
           >
             <Popup>
               <div className="p-2">
@@ -214,14 +148,6 @@ export function Map() {
           </Marker>
         ))}
       </MapContainer>
-
-      <button
-        onClick={handleShareLocation}
-        className="absolute bottom-4 right-4 z-[1000] bg-blue-600 text-white px-4 py-2 rounded-lg
-          hover:bg-blue-700 transition-colors duration-200 shadow-lg"
-      >
-        {t.shareLocation}
-      </button>
     </div>
   );
 }

@@ -21,6 +21,7 @@ interface ParkingState {
   setSelectedDistance: (distance: number) => void;
   getVisibleSpots: () => ParkingSpot[];
   unpark: (spotId: string) => Promise<void>;
+  handleUnpark: (location: UserLocation) => Promise<void>;
 }
 
 const DELAY_TIME = 60000; // 1 minute in milliseconds
@@ -143,6 +144,43 @@ export const useParkingStore = create<ParkingState>((set, get) => ({
 
     } catch (error) {
       console.error('Error in unpark:', error);
+    }
+  },
+
+  handleUnpark: async (location: UserLocation) => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('No user found');
+
+      // Create the new spot
+      const newSpot = {
+        user_id: user.id,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        user_email: user.email,
+        is_active: true,
+        size: 'medium',
+        is_accessible: false
+      };
+
+      // Insert into database
+      const { data, error } = await supabase
+        .from('parking_spots')
+        .insert(newSpot)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local state to add the new spot
+      set((state) => ({
+        spots: [...state.spots, data]
+      }));
+
+    } catch (error) {
+      console.error('Error in handleUnpark:', error);
+      throw error;
     }
   }
 }));

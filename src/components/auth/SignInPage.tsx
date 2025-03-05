@@ -47,14 +47,31 @@ export function SignInPage() {
       setLoading(true);
       setError(null);
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      // Get the current domain
+      const redirectUrl = window.location.hostname.includes('localhost')
+        ? `${window.location.origin}/auth/callback`
+        : 'https://67c8b2ce93cc13db64833189--eparkinggg.netlify.app/auth/callback';
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Google sign in error:', error);
+        throw error;
+      }
+
+      if (data) {
+        console.log('Google sign in successful:', data);
+      }
+      
     } catch (err: any) {
       console.error('Google sign in error:', err);
       setError(err.message);
